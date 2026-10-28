@@ -1,0 +1,29 @@
+# The epic's declaration. metadata.name equals the directory name; metadata.key
+# is the task-key prefix this epic reserves (ES → ES-1, ES-2, …). Owner, target
+# date and health are the platform's — never written here.
+apiVersion: orun.io/v1
+kind: Epic
+metadata:
+  name: envshare
+  key: ES
+spec:
+  title: "EnvShare on Cloudflare Workers, KV and D1"
+  summary: "EnvShare (chronark/envshare) — share environment variables through a link only its holder can read: AES-GCM in the browser, the key in the link's fragment, each link limited to a number of reads and a TTL — runs on Cloudflare Workers + Static Assets with the ciphertext in Workers KV under the document's TTL and the read limits in D1, spent by one atomic statement so two concurrent last reads cannot both succeed, inside the Cirrus baseline's repository conventions, and becomes an Orun baseline that takes a new secret-sharing site from nothing to live on stage and prod in one landing."
+  state: started
+  milestones:
+    - name: "ES0 — the spec"
+      exitCriteria:
+        - "the repository is born with its intent, CI, tooling and spec index, and this doc set and the task contracts are on main"
+      tasks: [ES-1]
+    - name: "ES1 — the secret share on Workers"
+      exitCriteria:
+        - "apps/web is the upstream template on Next.js 16.3.8, built with webpack by OpenNext into one Worker with Static Assets, within Workers Free's 3 MiB"
+        - "the ciphertext is a KV value written with expirationTtl (60 s at least); the read limit and the expiry are a D1 row spent by one atomic UPDATE … RETURNING; the last read deletes both; the encryption stays in the browser"
+        - "`pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm build` are green, and the README says how every Vercel piece maps to Cloudflare"
+      tasks: [ES-2]
+    - name: "ES2 — a baseline"
+      exitCriteria:
+        - "blueprint.yaml (the console card) and repo-blueprint.yaml (the build) take a new secret-sharing site from nothing to live on stage and prod in one landing, then record it"
+        - "a product built from it carries the product only, renamed throughout to its own name, repository, Worker, database and namespace names and its API's headers, with the template's MIT licence intact"
+        - "Baseline CI is green: contract tests, generated component docs, the blueprint read by the pinned orun, the leak gate, the offline bootstrap and the end-to-end tier — the stage lanes' steps in staged job trees, the Worker served: a share read to its limit and gone, a TTL kept, two concurrent last reads of which one is served, no request carrying the key"
+      tasks: [ES-3]

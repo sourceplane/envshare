@@ -1,0 +1,21 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: ES-2
+  title: "The secret share on Workers"
+spec:
+  goal: EnvShare runs as one Cloudflare Worker with Static Assets — the encryption in the browser as upstream, the ciphertext in KV under the document's TTL, the read limit and expiry in D1 spent by one atomic statement, the last read deleting both — with its tests, and its README saying how it maps to Vercel
+  affects:
+    - apps/web
+    - packages/db
+    - infra
+    - tests/web
+    - tests/db
+    - tooling/wire
+    - pnpm-lock.yaml
+    - pnpm-workspace.yaml
+    - README.md
+  doneWhen:
+    - pnpm typecheck, lint, test and build are green, and the Worker is within Workers Free's 3 MiB gzipped
+    - wrangler dev serves a share that reads to its limit and then answers 404, keeps its TTL, and serves exactly one of two concurrent last reads
+  gates: []

@@ -1,0 +1,77 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: db-migrate
+  description: Applies the site's schema (packages/db's migrations) to the stage and prod Cloudflare D1 databases
+  labels:
+    domain: infra
+    scope: database
+    team: platform
+    layer: data
+
+spec:
+  type: db-migrate
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest and its sources declare.
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  domain: infra
+
+  # THE SCHEMA BETWEEN THE DATABASE AND THE APP. Migrations target the
+  # database the `cloudflare-d1` component creates, and find it through the
+  # wiring document that component lease-publishes after its apply — and a
+  # job resolves its secrets when it STARTS, so on a merge to main this waits
+  # for that environment's apply (enforced). apps/web waits on this the same
+  # way, so one convergence runs cloudflare-d1 → db-migrate → web per
+  # environment. A pull request applies nothing (this plans offline there), so
+  # nothing on one waits (advisory). `db` is the package this builds and runs;
+  # a change to it re-plans this.
+  dependsOn:
+    - component: db
+    - component: cloudflare-d1
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+
+  path: packages/db/src/migrations
+
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+    owner: sourceplane
+    repo: envshare
+
+  # Everything the runner needs to reach D1 over the REST API, all resolved
+  # from orun secrets: the provider credential is minted fresh per run from the
+  # Cloudflare integration's d1-edit template (the workers-deploy token cannot
+  # touch D1), the account id is a non-secret connection fact, and the
+  # database id arrives in the wiring document the cloudflare-d1 component
+  # lease-publishes.
+  secretEnv:
+    CLOUDFLARE_API_TOKEN: "secret://envshare/envshare/{{ .environment }}/CLOUDFLARE_D1_TOKEN"
+    CLOUDFLARE_ACCOUNT_ID: "secret://envshare/envshare/{{ .environment }}/CLOUDFLARE_ACCOUNT_ID"
+    WIRING_CLOUDFLARE_D1: "secret://envshare/envshare/{{ .environment }}/WIRING_CLOUDFLARE_D1"
+
+  subscribe:
+    environments:
+      - name: stage
+        profile: plan
+        profileRules:
+          - profile: apply
+            when:
+              triggerRef: github-push-main
+
+      - name: prod
+        profile: plan
+        profileRules:
+          - profile: apply
+            when:
+              triggerRef: github-push-main

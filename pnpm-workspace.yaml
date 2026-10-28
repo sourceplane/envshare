@@ -10,3 +10,8 @@ onlyBuiltDependencies:
   - esbuild
   - workerd
   - sharp
+
+# One @types/react for every package, so the app's React types and the
+# tests' (tests/web asks for ^19) are the same copy.
+overrides:
+  "@types/react": 19.0.12

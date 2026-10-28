@@ -1,0 +1,9 @@
+{
+  "_comment": "THIS TREE'S OWN IDENTITY — the FROM side of every rebrand. tooling/rebrand/rebrand.mjs reads it to know what to rename AWAY from; a product's identity is the --values file, which is the TO side. Change a value here only together with the tree: these strings must be what the tree actually contains, or the rename silently misses and the product ships carrying this baseline's name. `productName` is the SITE_NAME seam in apps/web/lib/site.ts; `slug` also names the D1 databases and KV namespaces (terraform `repo`), the db-migrate parameters, the secret project and the HTTP API's `envshare-ttl`/`envshare-reads` headers; `domain` and `subdomain` are placeholders, because this baseline has never deployed under a name of its own; `githubOwner` is the owner in SOURCE_URL. The template's own spelling, EnvShare, is not the Pascal form (Envshare) and is used in code only through SITE_NAME and in the credit to it.",
+  "slug": "envshare",
+  "pascal": "Envshare",
+  "productName": "EnvShare",
+  "domain": "envshare.example.com",
+  "subdomain": "your-workers-subdomain",
+  "githubOwner": "sourceplane"
+}

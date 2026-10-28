@@ -9,7 +9,7 @@ metadata:
 spec:
   title: "EnvShare on Cloudflare Workers, KV and D1"
   summary: "EnvShare (chronark/envshare) — share environment variables through a link only its holder can read: AES-GCM in the browser, the key in the link's fragment, each link limited to a number of reads and a TTL — runs on Cloudflare Workers + Static Assets with the ciphertext in Workers KV under the document's TTL and the read limits in D1, spent by one atomic statement so two concurrent last reads cannot both succeed, inside the Cirrus baseline's repository conventions, and becomes an Orun baseline that takes a new secret-sharing site from nothing to live on stage and prod in one landing."
-  state: started
+  state: completed
   milestones:
     - name: "ES0 — the spec"
       exitCriteria:

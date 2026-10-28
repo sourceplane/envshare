@@ -1,0 +1,168 @@
+# The envshare card: what the console's Blueprints page renders and
+# the platform's bootstrap door consumes.
+#
+# THIS FILE IS NOT THE BUILD. `spec.bootstrap.blueprint` names the build
+# document — `repo-blueprint.yaml`, whose phases a runner places. This card is
+# what an operator reads and fills in before pressing Build, and
+# `testing/manifest.test.sh` compares every list below to the document that
+# actually does the thing, not to a copy of itself.
+#
+# The division of labour with the registry is strict: the registry (orun-cloud
+# `infra/baselines-registry/baselines.yaml`) owns identity and commerce — id,
+# visibility, tier, the pinned tag. This file owns the build contract. Neither
+# restates the other, which is why there is no `tag` here: this file is
+# fetched AT the tag the registry pins.
+apiVersion: orun.io/v1
+kind: Blueprint
+metadata:
+  name: envshare
+  displayName: EnvShare — share environment variables securely, on Cloudflare Workers with KV and D1
+  description: >
+    Vercel's EnvShare template (chronark/envshare) as a product of its own:
+    paste environment variables or a file, and the browser encrypts them with
+    AES-GCM before anything leaves it; the link it hands back carries the key
+    in its fragment, which is never sent. The server stores only ciphertext,
+    with a time to live and a read limit, and deletes it after the last read.
+    Built by OpenNext into one Cloudflare Worker with Static Assets — the
+    ciphertext in a Workers KV namespace that expires it, the read limits in a
+    Cloudflare D1 database that counts them atomically, both provisioned per
+    environment by Terraform, the schema applied by db-migrate — and CI that
+    applies them, migrates and deploys the site to stage and prod on merge.
+    One provider, one consent. Live in about seven minutes, in one landing.
+  tags: [secrets, security, encryption, nextjs, kv, d1, cloudflare]
+spec:
+  source:
+    repo: sourceplane/envshare
+    # No `tag`. The registry pins it; this file is fetched at it.
+
+  # ── What the operator reads first ────────────────────────────────────────
+  overview:
+    lede: >
+      A way to share environment variables securely, on Cloudflare: the
+      browser encrypts, the link carries the key, and the server keeps only
+      ciphertext that expires and stops reading after its last read. Nothing
+      to connect after the build.
+    architecture:
+      - layer: Browser
+        items: [AES-GCM encryption (the key stays in the link)]
+      - layer: Edge
+        items: [web]
+      - layer: Data
+        items: [Workers KV (cloudflare-kv), Cloudflare D1 (cloudflare-d1), migrations (db-migrate)]
+      - layer: Delivery
+        items: [GitHub Actions, OpenNext, Terraform]
+    outcome:
+      - Live on stage and prod, in one landing
+      - The namespace and the database applied before the Worker that binds them
+      - Read limits counted atomically in D1, so a last read is served once
+      - Every merge redeploys, smoke-tested
+      - Its own CI from the first commit
+
+  requires:
+    # Cloudflare is the only provider connection a bootstrap needs. GitHub
+    # arrives as the App installation plus the repo link, not as a
+    # connection row. The site uses no other service and holds no key of its
+    # own: documents are encrypted in the browser.
+    integrations: [github, cloudflare]
+    apiKeyRole: admin          # secret writes need the admin floor
+
+  # Every input is collected by the console: keys are lowercase (the
+  # platform's reader refuses anything else), every one carries the `pattern`
+  # its value is checked against before Continue, and a value the console
+  # already holds says so with `from`. repo-blueprint.yaml declares the same
+  # names; `repoPrivate`, `orunWorkspace` and `epicSlug` are build inputs with
+  # defaults (or filled from the build's workspace) and are not asked.
+  #
+  # NOR IS THE DOMAIN. The site goes live on workers.dev, and a domain is an
+  # owner's step after the bootstrap: `productdomain` defaults to empty, the
+  # rebrand writes the reserved placeholder `<reponame>.example.com` where
+  # the domain goes, and the site's README ("Custom domain") says how to set
+  # it. Nothing that needs a domain is removed — it waits for one.
+  inputs:
+    - key: reponame
+      label: Repo name
+      pattern: "^[a-z][a-z0-9-]{1,38}$"
+      # The operator picked the repository; its name IS this value.
+      from: repo.name
+    - key: productname
+      label: Site name
+      pattern: "^[A-Za-z0-9][A-Za-z0-9 .,'&-]{1,48}$"
+      help: The name visitors see — the header, the page title and the deploy page.
+      example: Acme Secrets
+    - key: githuborg
+      label: GitHub organisation
+      pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$"
+      help: The GitHub org or user the site's repository is created under.
+      # DERIVED FROM THE CHOSEN REPOSITORY: its owner IS this value. Declared
+      # because repo-blueprint.yaml requires it — a build may declare more
+      # inputs than this card, but not require one nobody supplies.
+      from: repo.owner
+    - key: subdomain
+      label: workers.dev subdomain
+      pattern: "^[a-z0-9][a-z0-9-]{0,62}$"
+      help: The workers.dev subdomain of the Cloudflare account the site deploys into.
+      example: acme
+      # READ FROM THE CLOUDFLARE CONNECTION, not asked. The subdomain belongs
+      # to the account the same way its id does, and there is exactly one
+      # right answer — a typed one could only be wrong, and wrong showed up
+      # after deploy, in the smoke checks and the verify URLs below. The
+      # integration reads it from Cloudflare at connect and on its hourly
+      # health check; the bootstrap door fills this input from the connection
+      # the build is BOUND to, the same one CLOUDFLARE_ACCOUNT_ID and the
+      # deploy tokens mint from, so all three name one account. The console
+      # renders no field for it, and an account with no workers.dev subdomain
+      # refuses the build at the door, naming the fix, before anything is
+      # created.
+      from: connection.cloudflare.workersSubdomain
+
+  # ── PREVIEW ONLY. repo-blueprint.yaml's `orun.integrations/reconcile@v1`
+  # hooks mint these, brokered, during 01-product. ─────────────────────────
+  # Transcribed from those hooks' own `keys:` and `template:` values, so
+  # testing/manifest.test.sh compares this list to the document that mints
+  # them. The console renders them read-only: no credential is ever typed,
+  # shown or stored. Keys that already exist are kept. The D1 database ids
+  # and the namespace ids are not here: they are not credentials, and each
+  # root's own apply publishes them. The KV namespace applies with the deploy
+  # token.
+  secrets:
+    - key: CLOUDFLARE_API_TOKEN
+      provider: cloudflare
+      template: workers-deploy
+      why: Deploys the Worker and its static assets, and applies the KV namespace
+    - key: CLOUDFLARE_D1_TOKEN
+      provider: cloudflare
+      template: d1-edit
+      why: Applies the D1 database and runs its migrations (the deploy token cannot touch D1)
+    - key: CLOUDFLARE_ACCOUNT_ID
+      provider: cloudflare
+      template: account-id
+      why: Connection fact, not a secret
+      fact: true
+
+  # ── PREVIEW ONLY. repo-blueprint.yaml's run-level `hooks.preInstantiate`
+  # opens these — the epic, every milestone in this order, every task — before
+  # the first phase places. Idempotent by identity, so a re-run finds what it
+  # made before.
+  programme:
+    epicSlug: docs-baselining      # = repo-blueprint.yaml's `epicSlug` default
+    epicName: "Docs baselining — {productname}"
+    milestones:
+      # The whole product is one landing (01-product): the repository, the D1
+      # and KV roots, the migrations, the site and its tests are one pull
+      # request and one convergence.
+      - name: 01-product
+      - name: 02-docs
+
+  bootstrap:
+    # THE BUILD DOCUMENT. There is no umbrella workflow and no agent brief:
+    # every phase is declared in it and orun runs it.
+    blueprint: repo-blueprint.yaml
+    # Summed from the phases' expectedMinutes (6 + 1): turso-starter's
+    # measured shape, plus a minute for the KV root's apply and the webpack
+    # build. An estimate until a live build measures it.
+    expectedMinutes: 7
+    tokenChannel: ORUN_TOKEN_FILE   # how a runner hands over its refreshed token
+  verify:
+    urls:
+      - "https://{reponame}-web-{env}.{subdomain}.workers.dev"
+    envs: [stage, prod]

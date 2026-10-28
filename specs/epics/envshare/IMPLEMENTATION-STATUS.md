@@ -4,7 +4,7 @@
 |---|---|---|
 | ES0 — the spec | ✅ | ES-1 |
 | ES1 — the secret share on Workers | ✅ | ES-2 |
-| ES2 — a baseline | planned | ES-3 |
+| ES2 — a baseline | ✅ | ES-3, tagged `baseline-v1` |
 
 ## Departures from the upstream template
 

@@ -1,0 +1,24 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: ES-3
+  title: "envshare becomes an Orun baseline"
+spec:
+  goal: blueprint.yaml and repo-blueprint.yaml take a new secret-sharing site from nothing to live on stage and prod in one landing, and the baseline's tests prove it offline
+  affects:
+    - blueprint.yaml
+    - repo-blueprint.yaml
+    - .baseline
+    - tooling/rebrand
+    - tooling/bootstrap
+    - hooks
+    - docs/phases
+    - ai/context
+    - testing
+    - .github/workflows/baseline.yml
+    - .github/workflows/tag.yml
+    - BOOTSTRAP.md
+  doneWhen:
+    - every Baseline CI tier is green, the end-to-end tier included
+    - the card reads with the platform's own reader
+  gates: []

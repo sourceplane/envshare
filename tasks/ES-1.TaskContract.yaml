@@ -1,0 +1,15 @@
+apiVersion: orun.io/v1
+kind: TaskContract
+metadata:
+  name: ES-1
+  title: "The spec"
+spec:
+  goal: The envshare epic's doc set and task contracts are on main — what the template is, how each piece maps to Cloudflare, the milestones, the risks
+  affects:
+    - specs/epics/envshare
+    - specs/epics/README.md
+    - tasks
+  doneWhen:
+    - epic.yaml, README, design, implementation plan, risks and status are on main
+    - the three task contracts are on main
+  gates: []

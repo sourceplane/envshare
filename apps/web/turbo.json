@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "env": ["NEXT_PUBLIC_SITE_URL"],
+      "outputs": [".open-next/**", ".next/**", "!.next/cache/**"]
+    }
+  }
+}

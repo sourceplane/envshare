@@ -11,7 +11,7 @@ in one landing.**
 
 | | |
 |---|---|
-| Status | In progress — ES0 on main |
+| Status | In progress — ES1 on main: the site runs on Workers |
 | Upstream | [chronark/envshare](https://github.com/chronark/envshare) (MIT), at `b8ea7c7` |
 | Reference | [turso-starter](https://github.com/sourceplane/turso-starter) — Next.js on OpenNext with D1, its migrations and bootstrap; [kv-redis-starter](https://github.com/sourceplane/kv-redis-starter) — a KV root |
 | Key | `ES` |

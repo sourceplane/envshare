@@ -1,0 +1,125 @@
+apiVersion: sourceplane.io/v1
+kind: Component
+metadata:
+  name: web
+  description: The secret-sharing site (Next.js on Cloudflare Workers + Static Assets via @opennextjs/cloudflare, per environment; the shared documents' ciphertext in KV, their read limits and expiries in D1)
+spec:
+  type: cloudflare-workers-assets-turbo
+  lifecycle: production
+  owner: platform
+  # Its pages, attached to it in the workspace's catalog: what the Docs
+  # library shows for it, and what the catalog's docs and runbook checks read.
+  # Generated from what this manifest and its sources declare.
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture, title: Architecture }
+      - { path: docs/runbook.md, role: runbook, title: Runbook }
+  # `app`, not `web`: a domain and a component share one name space in the
+  # catalog, and a domain called `web` hid this component from it.
+  domain: app
+  path: apps/web
+  # Its own lane per environment: the Next.js build is the longest job in the
+  # plan, and a shared lane would wait on it.
+  lane: isolated
+  # INFRA BEFORE APP. The Worker binds the D1 database by id and the KV
+  # namespace by id, each rendered into its config during the build from the
+  # wiring document its root lease-publishes after its apply; and the app reads
+  # and writes the `secrets` and `metrics` tables, which db-migrate creates in
+  # that database. A job resolves its secrets when it STARTS, so on a merge to
+  # main this deploy waits for all three (enforced) — one convergence runs
+  # cloudflare-d1 → db-migrate and cloudflare-kv → web per environment, and
+  # the documents and the schema are there. A pull request deploys nothing, so
+  # nothing on one waits (advisory).
+  dependsOn:
+    - component: cloudflare-d1
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    - component: cloudflare-kv
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+    - component: db-migrate
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
+  secretEnv:
+    WIRING_CLOUDFLARE_D1_STAGE: "secret://envshare/envshare/stage/WIRING_CLOUDFLARE_D1"
+    WIRING_CLOUDFLARE_D1_PROD: "secret://envshare/envshare/prod/WIRING_CLOUDFLARE_D1"
+    WIRING_CLOUDFLARE_KV_STAGE: "secret://envshare/envshare/stage/WIRING_CLOUDFLARE_KV"
+    WIRING_CLOUDFLARE_KV_PROD: "secret://envshare/envshare/prod/WIRING_CLOUDFLARE_KV"
+  subscribe:
+    environments:
+      - name: dev
+        profile: verify
+      - name: stage
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+      - name: prod
+        profile: verify
+        profileRules:
+          - profile: deploy
+            when:
+              triggerRef: github-push-main
+  parameters:
+    nodeVersion: "22"
+    pnpmVersion: "10.12.1"
+
+    workspaceDir: ../..
+    appDir: .
+
+    turboFilter: "@app/web"
+    wranglerConfig: wrangler.jsonc
+
+    # @opennextjs/cloudflare emits a Worker entrypoint plus a static-assets
+    # directory bound via ASSETS — both deploy in one `wrangler deploy`.
+    workerEntrypoint: .open-next/worker.js
+    assetsDir: .open-next/assets
+
+    # Per-env worker name: envshare-web-{dev,stage,prod}.
+    workerName: envshare-web
+    environmentAwareWorkerName: true
+
+    # The account's workers.dev subdomain; exported to the smoke step as
+    # ${WORKERS_DEV_SUBDOMAIN} and used to build ${DEPLOYED_URL}.
+    workersDevSubdomain: your-workers-subdomain
+
+    installCommand: pnpm install --frozen-lockfile
+    # Render this environment's wrangler config, then build. stage and prod
+    # render from the wiring documents their cloudflare-d1 and cloudflare-kv
+    # applies published (secretEnv above, resolved before the job's first
+    # step); dev, which no root applies to and which only verifies, renders
+    # from the committed fixture. The committed wrangler.jsonc (the fixture
+    # render) is what the composition's verify-app-structure step finds before
+    # this runs.
+    #
+    # NEXT_PUBLIC_SITE_URL is the environment's public origin — SITE_URL
+    # (intent.yaml's environment env) or its workers.dev URL — which the Open
+    # Graph links are built on. The site holds no secret of its own: documents
+    # are encrypted in the browser, and the key never reaches the server.
+    buildCommand: node ../../tooling/wire/live.mjs --template wrangler.template.jsonc --out wrangler.jsonc --components cloudflare-d1,cloudflare-kv --env "${ORUN_ENVIRONMENT}" --fixture wiring.fixture.json --fixture-envs dev && NEXT_PUBLIC_SITE_URL="${SITE_URL:-https://envshare-web-${ORUN_ENVIRONMENT}.your-workers-subdomain.workers.dev}" pnpm exec turbo run build --filter=@app/web
+
+    # Smoke: the home page renders to its end (`</html>` — a render that
+    # throws partway through a streamed page still sent a 200), and
+    # /api/health answers ok — which only the Worker can, by counting the
+    # `secrets` table through its DB binding and touching its KV binding, so it
+    # proves the database and the namespace bound, the migrations applied and
+    # the Worker serving. Read-only: it stores no document and spends no read.
+    # Each response is buffered before grep so an early match cannot SIGPIPE
+    # curl.
+    smokeCommand: "html=$(curl -sfL \"${DEPLOYED_URL}/\") && echo \"${html}\" | grep -q '</html>' && health=$(curl -sf \"${DEPLOYED_URL}/api/health\") && echo \"${health}\" | grep -q '\"ok\":true'"
+  labels:
+    team: platform
+    layer: delivery
+    surface: web
+    runtime: cloudflare
